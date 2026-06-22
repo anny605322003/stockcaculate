@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="回測計算機">
+<title>回測百分比計算機</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%2314171c'/%3E%3Ctext x='90' y='100' font-size='64' fill='%23e2553a' text-anchor='middle' font-family='-apple-system,sans-serif' font-weight='700'%3E%25%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg: #14171c;
+    --panel: #1b1f26;
+    --display: #0f1115;
+    --line: #2a2f38;
+    --text: #eef0f3;
+    --muted: #8a909c;
+    --accent-down: #e2553a;   /* 減 / 虧損 */
+    --accent-up: #2fa66a;     /* 加 / 獲利 */
+    --key: #242933;
+    --key-hover: #2c323e;
+    --equals: #3d6bff;
+    --equals-hover: #2f57e0;
+  }
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", sans-serif;
+    display:flex;
+    justify-content:center;
+    align-items: center;
+    min-height: 100vh;
+    padding: calc(24px + env(safe-area-inset-top)) 12px calc(24px + env(safe-area-inset-bottom));
+  }
+  .app{
+    width: 100%;
+    max-width: 380px;
+    background: var(--panel);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+  }
+  .title{
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .display{
+    background: var(--display);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .expr{
+    min-height: 18px;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: right;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+  .value{
+    font-size: 40px;
+    text-align: right;
+    font-weight: 600;
+    margin-top: 4px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .value.up{ color: var(--accent-up); }
+  .value.down{ color: var(--accent-down); }
+
+  .pct-row{
+    display:grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .pct-btn{
+    background: var(--key);
+    border: 1px solid transparent;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 0;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .pct-btn:hover{ background: var(--key-hover); }
+  .pct-btn.active{
+    background: transparent;
+    border-color: var(--accent-down);
+    color: var(--accent-down);
+    font-weight: 700;
+  }
+  .pct-btn.active.is-up{
+    border-color: var(--accent-up);
+    color: var(--accent-up);
+  }
+
+  .sign-row{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .sign-btn{
+    border: none;
+    border-radius: 10px;
+    padding: 10px 0;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--key);
+    color: var(--muted);
+  }
+  .sign-btn.active.minus{ background: var(--accent-down); color: #fff; }
+  .sign-btn.active.plus{ background: var(--accent-up); color: #fff; }
+
+  .pad{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .key{
+    background: var(--key);
+    border: none;
+    color: var(--text);
+    border-radius: 12px;
+    font-size: 19px;
+    padding: 16px 0;
+    cursor: pointer;
+  }
+  .key:hover{ background: var(--key-hover); }
+  .key.func{ color: var(--muted); font-size: 16px; }
+  .key.equals{
+    background: var(--equals);
+    color: #fff;
+    grid-row: span 2;
+  }
+  .key.equals:hover{ background: var(--equals-hover); }
+  .key:active, .pct-btn:active, .sign-btn:active{ transform: scale(0.96); }
+
+  .hint{
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--muted);
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="title">回測百分比計算機</div>
+
+  <div class="display">
+    <div class="expr" id="expr">&nbsp;</div>
+    <div class="value" id="value">0</div>
+  </div>
+
+  <div class="pct-row" id="pctRow"></div>
+
+  <div class="sign-row">
+    <button class="sign-btn minus" id="signMinus">－ 減</button>
+    <button class="sign-btn plus" id="signPlus">＋ 加</button>
+  </div>
+
+  <div class="pad">
+    <button class="key" data-d="7">7</button>
+    <button class="key" data-d="8">8</button>
+    <button class="key" data-d="9">9</button>
+    <button class="key func" id="clear">C</button>
+
+    <button class="key" data-d="4">4</button>
+    <button class="key" data-d="5">5</button>
+    <button class="key" data-d="6">6</button>
+    <button class="key func" id="back">⌫</button>
+
+    <button class="key" data-d="1">1</button>
+    <button class="key" data-d="2">2</button>
+    <button class="key" data-d="3">3</button>
+    <button class="key equals" id="equals" rowspan="2">＝</button>
+
+    <button class="key" data-d="0">0</button>
+    <button class="key" data-d=".">.</button>
+    <button class="key func" id="useResult">用此結果</button>
+  </div>
+
+  <div class="hint">輸入數值 → 選百分比與加減 → 按＝</div>
+</div>
+
+<script>
+  const percents = [5, 8, 10, 12, 15, 18, 20];
+  let selectedPercent = 5;
+  let sign = -1; // -1 = 減, 1 = 加
+  let input = "";
+  let lastResult = null;
+
+  const exprEl = document.getElementById("expr");
+  const valueEl = document.getElementById("value");
+  const pctRow = document.getElementById("pctRow");
+
+  function renderPctButtons(){
+    pctRow.innerHTML = "";
+    percents.forEach(p => {
+      const btn = document.createElement("button");
+      btn.className = "pct-btn";
+      btn.textContent = p + "%";
+      if (p === selectedPercent) {
+        btn.classList.add("active");
+        if (sign === 1) btn.classList.add("is-up");
+      }
+      btn.addEventListener("click", () => {
+        selectedPercent = p;
+        renderPctButtons();
+        updateExpr();
+      });
+      pctRow.appendChild(btn);
+    });
+  }
+
+  function renderSignButtons(){
+    document.getElementById("signMinus").classList.toggle("active", sign === -1);
+    document.getElementById("signPlus").classList.toggle("active", sign === 1);
+  }
+
+  function updateExpr(){
+    const base = input === "" ? "0" : input;
+    const op = sign === -1 ? "－" : "＋";
+    exprEl.textContent = `${base}  ×  (1 ${op} ${selectedPercent}%)`;
+  }
+
+  function updateValueDisplay(text, cls){
+    valueEl.textContent = text;
+    valueEl.classList.remove("up", "down");
+    if (cls) valueEl.classList.add(cls);
+  }
+
+  function refresh(){
+    renderPctButtons();
+    renderSignButtons();
+    updateExpr();
+    updateValueDisplay(input === "" ? "0" : input, null);
+  }
+
+  // 數字鍵
+  document.querySelectorAll(".key[data-d]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const d = btn.getAttribute("data-d");
+      if (d === "." && input.includes(".")) return;
+      if (input.length >= 15) return;
+      input += d;
+      updateValueDisplay(input, null);
+      updateExpr();
+    });
+  });
+
+  document.getElementById("clear").addEventListener("click", () => {
+    input = "";
+    lastResult = null;
+    updateValueDisplay("0", null);
+    updateExpr();
+  });
+
+  document.getElementById("back").addEventListener("click", () => {
+    input = input.slice(0, -1);
+    updateValueDisplay(input === "" ? "0" : input, null);
+    updateExpr();
+  });
+
+  document.getElementById("signMinus").addEventListener("click", () => {
+    sign = -1;
+    refresh();
+  });
+  document.getElementById("signPlus").addEventListener("click", () => {
+    sign = 1;
+    refresh();
+  });
+
+  document.getElementById("equals").addEventListener("click", () => {
+    const base = parseFloat(input === "" ? "0" : input);
+    const result = base * (1 + sign * selectedPercent / 100);
+    lastResult = result;
+    const rounded = Math.round(result * 10000) / 10000;
+    updateValueDisplay(String(rounded), sign === -1 ? "down" : "up");
+  });
+
+  document.getElementById("useResult").addEventListener("click", () => {
+    if (lastResult === null) return;
+    input = String(Math.round(lastResult * 10000) / 10000);
+    updateValueDisplay(input, null);
+    updateExpr();
+  });
+
+  refresh();
+</script>
+</body>
+</html>
